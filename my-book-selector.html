@@ -104,6 +104,9 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .uzone p{font-size:.8rem;color:var(--brown);margin:0}
 .uzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 .isuccess{background:rgba(74,124,89,.1);border:1px solid var(--forest);border-radius:10px;padding:12px;text-align:center;font-size:.82rem;color:var(--forest);font-weight:700;display:none;margin-top:10px}
+.dlbtn{width:100%;padding:14px;background:linear-gradient(135deg,var(--forest),#3a6347);color:white;font-family:'Playfair Display',serif;font-size:1rem;font-style:italic;border:none;border-radius:12px;cursor:pointer;box-shadow:0 3px 12px rgba(74,124,89,.4);transition:.2s;margin-top:4px}
+.dlbtn:active{transform:scale(0.98)}
+.dlnote{font-size:.75rem;opacity:.7;margin-top:8px;text-align:center;line-height:1.5}
 .isuccess.show{display:block}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .sbox{background:var(--dark);border-radius:10px;padding:12px 8px;text-align:center}
@@ -380,6 +383,13 @@ self.addEventListener('fetch', e => {
       <input type="file" id="fileUp" accept=".csv,.xlsx,.xls">
     </label>
     <div class="isuccess" id="isuccess">✅ Library updated! <span id="icount"></span> books loaded.</div>
+  </div>
+  <div class="card">
+    <h3>💾 Save Updated App</h3>
+    <p style="font-size:.8rem;margin-bottom:12px;opacity:.8">Downloads a new version of the app with your current book list baked in — including any books you've marked as read. Re-upload this to GitHub to keep your hosted version in sync.</p>
+    <button class="dlbtn" id="dlBtn">⬇️ Download my-book-selector.html</button>
+    <p class="dlnote">Then drag & drop it into your GitHub repo to update the app.</p>
+    <div class="isuccess" id="dlsuccess" style="display:none;margin-top:10px">✅ Downloaded! Upload it to GitHub to update your app.</div>
   </div>
 </div>
 
@@ -1045,6 +1055,32 @@ function mapRows(rows) {
 }
 
 // ── INIT ──
+// ── DOWNLOAD UPDATED APP ──────────────────────────────────────────────────
+document.getElementById('dlBtn').addEventListener('click', () => {
+  // Get the current page HTML
+  const src = document.documentElement.outerHTML;
+
+  // Find the BOOKS data in the source and replace with current live BOOKS array
+  // The original marker is: let BOOKS = [{...}];
+  const booksJson = JSON.stringify(BOOKS);
+  const updated = src.replace(
+    /let BOOKS = \[[\s\S]*?\];(?=\s*let genreMode)/,
+    'let BOOKS = ' + booksJson + ';'
+  );
+
+  const blob = new Blob([updated], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'my-book-selector.html';
+  a.click();
+  URL.revokeObjectURL(url);
+
+  const s = document.getElementById('dlsuccess');
+  s.style.display = 'block';
+  setTimeout(() => s.style.display = 'none', 4000);
+});
+
 function init() {
   try { const s = localStorage.getItem('bp_books'); if(s) BOOKS = JSON.parse(s); } catch(e){}
   buildChips();
