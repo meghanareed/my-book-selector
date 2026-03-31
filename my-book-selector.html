@@ -107,6 +107,21 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .dlbtn{width:100%;padding:14px;background:linear-gradient(135deg,var(--forest),#3a6347);color:white;font-family:'Playfair Display',serif;font-size:1rem;font-style:italic;border:none;border-radius:12px;cursor:pointer;box-shadow:0 3px 12px rgba(74,124,89,.4);transition:.2s;margin-top:4px}
 .dlbtn:active{transform:scale(0.98)}
 .dlnote{font-size:.75rem;opacity:.7;margin-top:8px;text-align:center;line-height:1.5}
+.bremove{background:#8b3a3a;color:white}
+.bignore{background:rgba(61,43,31,.15);color:var(--brown)}
+.mactions2{display:flex;gap:8px;margin-top:6px}
+.mactions2 button{flex:1;padding:8px;border-radius:10px;border:none;cursor:pointer;font-family:'Lato',sans-serif;font-weight:700;font-size:.74rem;transition:.2s}
+.mactions2 button:hover{filter:brightness(1.1)}
+.logstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.lstat{background:var(--dark);border-radius:10px;padding:10px 6px;text-align:center}
+.lstat .ln{font-family:'Playfair Display',serif;font-size:1.3rem;display:block}
+.lstat .ll{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
+.lstat.read .ln{color:#6aab7e}
+.lstat.removed .ln{color:#c47a7a}
+.lstat.ignored .ln{color:var(--light)}
+.exportbtn{width:100%;padding:12px;background:linear-gradient(135deg,#5a3e7a,#3d2b55);color:#e8d5ff;font-family:'Playfair Display',serif;font-size:.95rem;font-style:italic;border:none;border-radius:12px;cursor:pointer;box-shadow:0 3px 12px rgba(90,62,122,.4);transition:.2s}
+.exportbtn:active{transform:scale(0.98)}
+.lognone{font-size:.8rem;color:var(--light);text-align:center;font-style:italic;padding:10px 0}
 .isuccess.show{display:block}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .sbox{background:var(--dark);border-radius:10px;padding:12px 8px;text-align:center}
@@ -385,6 +400,16 @@ self.addEventListener('fetch', e => {
     <div class="isuccess" id="isuccess">✅ Library updated! <span id="icount"></span> books loaded.</div>
   </div>
   <div class="card">
+    <h3>📋 Reading Log</h3>
+    <div class="logstats">
+      <div class="lstat read"><span class="ln" id="lgRead">0</span><span class="ll">✓ Read</span></div>
+      <div class="lstat removed"><span class="ln" id="lgRemoved">0</span><span class="ll">🗑 Removed</span></div>
+      <div class="lstat ignored"><span class="ln" id="lgIgnored">0</span><span class="ll">👻 Ignored</span></div>
+    </div>
+    <div id="logNone" class="lognone">No books logged yet — mark some as Read, Remove, or Ignore!</div>
+    <button class="exportbtn" id="exportLogBtn" style="display:none">📊 Export Log as Excel</button>
+  </div>
+  <div class="card">
     <h3>💾 Save Updated App</h3>
     <p style="font-size:.8rem;margin-bottom:12px;opacity:.8">Downloads a new version of the app with your current book list baked in — including any books you've marked as read. Re-upload this to GitHub to keep your hosted version in sync.</p>
     <button class="dlbtn" id="dlBtn">⬇️ Download my-book-selector.html</button>
@@ -407,6 +432,10 @@ self.addEventListener('fetch', e => {
       <button class="bagain" id="bagain">🎲 Again!</button>
       <button class="bread" id="bread">✓ Read it!</button>
       <button class="bclose" id="bclose">✕</button>
+    </div>
+    <div class="mactions2">
+      <button class="mactions2 bremove" id="bremove">🗑 Remove</button>
+      <button class="mactions2 bignore" id="bignore">👻 Ignore</button>
     </div>
   </div>
 </div>
@@ -583,6 +612,7 @@ document.getElementById('bclose').addEventListener('click', () => document.getEl
 document.getElementById('overlay').addEventListener('click', e => { if (e.target === document.getElementById('overlay')) document.getElementById('overlay').classList.remove('show'); });
 document.getElementById('bread').addEventListener('click', () => {
   if (!cur) return;
+  logBook(cur, 'Read');
   const i = BOOKS.findIndex(b => b.title === cur.title && b.author === cur.author);
   if (i > -1) { BOOKS.splice(i,1); saveBooks(); updateCount(); updateStats(); }
   document.getElementById('overlay').classList.remove('show');
@@ -1009,6 +1039,73 @@ function doImport(books) {
 
 function saveBooks() { try { localStorage.setItem('bp_books', JSON.stringify(BOOKS)); } catch(e){} }
 
+// ── READING LOG ──────────────────────────────────────────────────────────────
+let LOG = [];
+function saveLog() { try { localStorage.setItem('bp_log', JSON.stringify(LOG)); } catch(e){} }
+
+function logBook(book, status) {
+  // Remove any previous entry for the same book (re-categorising)
+  LOG = LOG.filter(e => !(e.title === book.title && e.author === book.author));
+  LOG.push({
+    title: book.title || '',
+    author: book.author || '',
+    genre: book.genre || '',
+    status: status,
+    date: new Date().toLocaleDateString('en-AU', {day:'2-digit',month:'2-digit',year:'numeric'})
+  });
+  saveLog();
+  updateLogCard();
+}
+
+function updateLogCard() {
+  const read    = LOG.filter(e => e.status === 'Read').length;
+  const removed = LOG.filter(e => e.status === 'Removed').length;
+  const ignored = LOG.filter(e => e.status === 'Ignored').length;
+  const el = id => document.getElementById(id);
+  el('lgRead').textContent    = read;
+  el('lgRemoved').textContent = removed;
+  el('lgIgnored').textContent = ignored;
+  const hasAny = LOG.length > 0;
+  el('logNone').style.display    = hasAny ? 'none'  : 'block';
+  el('exportLogBtn').style.display = hasAny ? 'block' : 'none';
+}
+
+document.getElementById('exportLogBtn').addEventListener('click', () => {
+  if (!LOG.length) return;
+  const rows = [['Title','Author','Genre','Status','Date']];
+  LOG.forEach(e => rows.push([e.title, e.author, e.genre, e.status, e.date]));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // Column widths
+  ws['!cols'] = [{wch:50},{wch:30},{wch:40},{wch:12},{wch:12}];
+  // Style header row bold (basic)
+  ['A1','B1','C1','D1','E1'].forEach(ref => {
+    if (ws[ref]) ws[ref].s = { font: { bold: true } };
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reading Log');
+  XLSX.writeFile(wb, 'my-reading-log.xlsx');
+});
+
+// Remove button
+document.getElementById('bremove').addEventListener('click', () => {
+  if (!cur) return;
+  logBook(cur, 'Removed');
+  const i = BOOKS.findIndex(b => b.title === cur.title && b.author === cur.author);
+  if (i > -1) { BOOKS.splice(i,1); saveBooks(); updateCount(); updateStats(); }
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
+});
+
+// Ignore button
+document.getElementById('bignore').addEventListener('click', () => {
+  if (!cur) return;
+  logBook(cur, 'Ignored');
+  const i = BOOKS.findIndex(b => b.title === cur.title && b.author === cur.author);
+  if (i > -1) { BOOKS.splice(i,1); saveBooks(); updateCount(); updateStats(); }
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
+});
+
 function parseCSV(text) {
   const lines = text.split(/\r?\n/);
   if (lines.length < 2) return [];
@@ -1083,10 +1180,12 @@ document.getElementById('dlBtn').addEventListener('click', () => {
 
 function init() {
   try { const s = localStorage.getItem('bp_books'); if(s) BOOKS = JSON.parse(s); } catch(e){}
+  try { const l = localStorage.getItem('bp_log'); if(l) LOG = JSON.parse(l); } catch(e){}
   buildChips();
   updateCount();
   updateStats();
   buildListCache();
+  updateLogCard();
   document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
 }
 
