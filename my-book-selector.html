@@ -402,20 +402,13 @@ self.addEventListener('fetch', e => {
     </div>
   </div>
   <div class="card">
-    <h3>🔄 Get StoryGraph Export</h3>
-    <div class="steps">
-      <div class="step"><div class="sn">1</div><p>Go to <a href="https://app.thestorygraph.com" target="_blank">StoryGraph</a> → Profile → <strong>Export your data</strong></p></div>
-      <div class="step"><div class="sn">2</div><p>Check your email for the download link from StoryGraph</p></div>
-      <div class="step"><div class="sn">3</div><p>Upload the CSV below — or use your updated Excel file</p></div>
-    </div>
-  </div>
-  <div class="card">
-    <h3>📁 Upload New File</h3>
-    <p style="font-size:.8rem;margin-bottom:12px;opacity:.8">Upload a StoryGraph CSV export or updated Excel (.xlsx) to refresh your library.</p>
+    <h3>📁 Refresh Your Library</h3>
+    <p style="font-size:.8rem;margin-bottom:10px;opacity:.9">Upload your <strong>books_output.xlsx</strong> file to refresh your library. This file has all your book details — genre, tropes, triggers, page count — which power the filters on the Pick tab.</p>
+    <p style="font-size:.75rem;margin-bottom:12px;opacity:.7">Books already marked <strong>Read = Yes</strong> are automatically excluded. You can also upload a StoryGraph CSV export, but it won't have filter data (genre/tropes etc.).</p>
     <label class="uzone">
       <span class="ui">📂</span>
       <p><strong>Tap to choose file</strong></p>
-      <p style="margin-top:4px;opacity:.7">.csv or .xlsx — both work!</p>
+      <p style="margin-top:4px;opacity:.7">books_output.xlsx — or a StoryGraph CSV</p>
       <input type="file" id="fileUp" accept=".csv,.xlsx,.xls">
     </label>
     <div class="isuccess" id="isuccess">✅ Library updated! <span id="icount"></span> books loaded.</div>
