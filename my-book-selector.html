@@ -98,8 +98,8 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .step .sn{width:24px;height:24px;background:var(--brown);color:var(--cream);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0;margin-top:1px}
 .step p{font-size:.8rem;line-height:1.5}
 .step p a{color:var(--forest);font-weight:700;text-decoration:none}
-.uzone{border:2px dashed var(--light);border-radius:12px;padding:22px;text-align:center;cursor:pointer;transition:.2s;background:rgba(253,246,227,.5);position:relative}
-.uzone:hover{border-color:var(--brown);background:rgba(196,149,106,.1)}
+.uzone{border-radius:12px;padding:12px 0 4px 0;text-align:center;cursor:pointer;transition:.2s;background:none;position:relative}
+.uzone:hover{opacity:.8}
 .uzone .ui{font-size:2.2rem;display:block;margin-bottom:6px}
 .uzone p{font-size:.8rem;color:var(--brown);margin:0}
 .uzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
@@ -403,12 +403,11 @@ self.addEventListener('fetch', e => {
   </div>
   <div class="card">
     <h3>📁 Refresh Your Library</h3>
-    <p style="font-size:.8rem;margin-bottom:10px;opacity:.9">Upload your <strong>books_output.xlsx</strong> file to refresh your library. This file has all your book details — genre, tropes, triggers, page count — which power the filters on the Pick tab.</p>
-    <p style="font-size:.75rem;margin-bottom:12px;opacity:.7">Books already marked <strong>Read = Yes</strong> are automatically excluded. You can also upload a StoryGraph CSV export, but it won't have filter data (genre/tropes etc.).</p>
+    <p style="font-size:.8rem;margin-bottom:10px;opacity:.9">Upload your <strong>Books Output</strong> file to refresh your library — this powers all the filters on the Pick tab. Books marked Read are automatically excluded.</p>
     <label class="uzone">
       <span class="ui">📂</span>
       <p><strong>Tap to choose file</strong></p>
-      <p style="margin-top:4px;opacity:.7">books_output.xlsx — or a StoryGraph CSV</p>
+      <p style="margin-top:4px;opacity:.7">books_output.xlsx</p>
       <input type="file" id="fileUp" accept=".csv,.xlsx,.xls">
     </label>
     <div class="isuccess" id="isuccess">✅ Library updated! <span id="icount"></span> books loaded.</div>
