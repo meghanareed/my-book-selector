@@ -107,6 +107,15 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .dlbtn{width:100%;padding:14px;background:linear-gradient(135deg,var(--forest),#3a6347);color:white;font-family:'Playfair Display',serif;font-size:1rem;font-style:italic;border:none;border-radius:12px;cursor:pointer;box-shadow:0 3px 12px rgba(74,124,89,.4);transition:.2s;margin-top:4px}
 .dlbtn:active{transform:scale(0.98)}
 .dlnote{font-size:.75rem;opacity:.7;margin-top:8px;text-align:center;line-height:1.5}
+.vgrid{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.78rem;line-height:1.6;margin-top:10px}
+.vgrid dt{opacity:.65;white-space:nowrap}
+.vgrid dd{font-weight:700;text-align:right}
+.vbuild{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(196,149,106,.3)}
+.vnum{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--brown);line-height:1}
+.vwhen{font-size:.75rem;opacity:.7;text-align:right}
+.vsync{margin-top:10px;border-radius:10px;padding:9px 11px;font-size:.78rem;font-weight:700;line-height:1.45;text-align:center}
+.vsync.ok{background:rgba(74,124,89,.12);border:1px solid var(--forest);color:var(--forest)}
+.vsync.pending{background:rgba(201,168,76,.14);border:1px solid var(--gold);color:#8a6f21}
 .chip[data-trig].on{background:#8b3a3a;color:white;border-color:#8b3a3a}
 .bremove{background:#8b3a3a;color:white}
 .bignore{background:rgba(61,43,31,.15);color:var(--brown)}
@@ -394,6 +403,19 @@ self.addEventListener('fetch', e => {
 <!-- UPDATE -->
 <div id="tab-update" class="tab">
   <div class="card">
+    <h3>📦 App Version</h3>
+    <div class="vbuild">
+      <span class="vnum" id="vBuild">–</span>
+      <span class="vwhen" id="vWhen">–</span>
+    </div>
+    <dl class="vgrid">
+      <dt>In this file</dt><dd id="vFile">–</dd>
+      <dt>On this device</dt><dd id="vDevice">–</dd>
+      <dt>Library refreshed</dt><dd id="vRefreshed">–</dd>
+    </dl>
+    <div class="vsync ok" id="vSync">–</div>
+  </div>
+  <div class="card">
     <h3>📊 Library Stats</h3>
     <div class="stats">
       <div class="sbox"><span class="sn" id="stTotal">–</span><span class="sl">To Read</span></div>
@@ -426,7 +448,7 @@ self.addEventListener('fetch', e => {
     <h3>💾 Save Updated App</h3>
     <p style="font-size:.8rem;margin-bottom:12px;opacity:.8">Downloads a new version of the app with your current book list baked in — including any books you've marked as read. Re-upload this to GitHub to keep your hosted version in sync.</p>
     <button class="dlbtn" id="dlBtn">⬇️ Download my-book-selector.html</button>
-    <p class="dlnote">Then drag & drop it into your GitHub repo to update the app.</p>
+    <p class="dlnote">Then drag &amp; drop it into your GitHub repo to update the app. The build number above will match once it&rsquo;s live.</p>
     <div class="isuccess" id="dlsuccess" style="display:none;margin-top:10px">✅ Downloaded! Upload it to GitHub to update your app.</div>
   </div>
 </div>
@@ -651,6 +673,7 @@ document.getElementById('bread').addEventListener('click', () => {
   if (i > -1) { BOOKS.splice(i,1); saveBooks(); updateCount(); updateStats(); }
   document.getElementById('overlay').classList.remove('show');
   document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
+  renderVersion(); // after the splice, so the book count is current
 });
 
 // ── MASCOT ──
@@ -1080,7 +1103,8 @@ function doImport(books) {
     (skipped ? ' (' + skipped + ' already logged, skipped)' : '');
   document.getElementById('isuccess').classList.add('show');
   document.getElementById('hcount').textContent = kept.length + ' books in your library';
-  updateCount(); updateStats(); updateLogCard();
+  try { localStorage.setItem('bp_refreshed', new Date().toISOString()); } catch(e){}
+  updateCount(); updateStats(); updateLogCard(); renderVersion();
   setTimeout(() => document.getElementById('isuccess').classList.remove('show'), 4000);
 }
 
@@ -1090,6 +1114,8 @@ function saveBooks() { try { localStorage.setItem('bp_books', JSON.stringify(BOO
 let LOG = [];
 // Baked-in log from 'Save Updated App' — used only when this browser has no log yet.
 /*LOG_START*/let SEED_LOG = [];/*LOG_END*/
+// Stamped by 'Save Updated App' so you can tell which build is live.
+/*BUILD_START*/let BUILD = { n: 0, at: '', books: 0, log: 0 };/*BUILD_END*/
 function saveLog() { try { localStorage.setItem('bp_log', JSON.stringify(LOG)); } catch(e){} }
 
 function normStr(v) { return (v || '').trim().toLowerCase(); }
@@ -1111,6 +1137,7 @@ function logBook(book, status) {
   });
   saveLog();
   updateLogCard();
+  renderVersion();
 }
 
 function updateLogCard() {
@@ -1124,6 +1151,44 @@ function updateLogCard() {
   const hasAny = LOG.length > 0;
   el('logNone').style.display    = hasAny ? 'none'  : 'block';
   el('exportLogBtn').style.display = hasAny ? 'block' : 'none';
+}
+
+// ── VERSION / SYNC STATE ─────────────────────────────────────────────────────
+function fmtWhen(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('en-AU', {day:'2-digit', month:'short', year:'numeric'}) +
+         ', ' + d.toLocaleTimeString('en-AU', {hour:'numeric', minute:'2-digit'});
+}
+
+function renderVersion() {
+  const el = id => document.getElementById(id);
+  const n = BUILD.n || 0;
+  const counts = (books, log) =>
+    books.toLocaleString() + (books === 1 ? ' book' : ' books') + ' \u00b7 ' + log + ' logged';
+
+  el('vBuild').textContent = n ? 'Build ' + n : 'Original';
+  el('vWhen').textContent  = n ? (fmtWhen(BUILD.at) || 'saved from this app')
+                               : 'never saved from this app';
+  el('vFile').textContent   = n ? counts(BUILD.books, BUILD.log) : 'as first uploaded';
+  el('vDevice').textContent = counts(BOOKS.length, LOG.length);
+
+  const refreshed = localStorage.getItem('bp_refreshed');
+  el('vRefreshed').textContent = refreshed ? (fmtWhen(refreshed) || '\u2013') : 'not since this build';
+
+  // Only meaningful once a build exists to compare against.
+  const inSync = n > 0 && BUILD.books === BOOKS.length && BUILD.log === LOG.length;
+  const sync = el('vSync');
+  if (inSync) {
+    sync.className = 'vsync ok';
+    sync.textContent = '\u2705 This device matches the uploaded file.';
+  } else {
+    sync.className = 'vsync pending';
+    sync.textContent = n
+      ? '\u26a0\ufe0f Changes on this device aren\u2019t in the file yet \u2014 download and re-upload to sync.'
+      : '\u26a0\ufe0f Nothing saved from this app yet \u2014 download and re-upload to bake in your changes.';
+  }
 }
 
 document.getElementById('exportLogBtn').addEventListener('click', () => {
@@ -1150,6 +1215,7 @@ document.getElementById('bremove').addEventListener('click', () => {
   if (i > -1) { BOOKS.splice(i,1); saveBooks(); updateCount(); updateStats(); }
   document.getElementById('overlay').classList.remove('show');
   document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
+  renderVersion(); // after the splice, so the book count is current
 });
 
 // Ignore button
@@ -1160,6 +1226,7 @@ document.getElementById('bignore').addEventListener('click', () => {
   if (i > -1) { BOOKS.splice(i,1); saveBooks(); updateCount(); updateStats(); }
   document.getElementById('overlay').classList.remove('show');
   document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
+  renderVersion(); // after the splice, so the book count is current
 });
 
 function parseCSV(text) {
@@ -1235,10 +1302,14 @@ document.getElementById('dlBtn').addEventListener('click', () => {
     .replace(/<\/script/gi, '<\\/script')
     .replace(/\*\//g, '*\\/');
 
+  const stamp = { n: (BUILD.n || 0) + 1, at: new Date().toISOString(),
+                  books: BOOKS.length, log: LOG.length };
+
   const okBooks = bake('/*BOOKS_START*/', '/*BOOKS_END*/', 'let BOOKS = ' + safe(BOOKS) + ';');
   const okLog   = bake('/*LOG_START*/',   '/*LOG_END*/',   'let SEED_LOG = ' + safe(LOG) + ';');
+  const okBuild = bake('/*BUILD_START*/', '/*BUILD_END*/', 'let BUILD = ' + safe(stamp) + ';');
 
-  if (!okBooks || !okLog) {
+  if (!okBooks || !okLog || !okBuild) {
     alert("Couldn't build the updated file — the data markers are missing. Nothing was downloaded.");
     return;
   }
@@ -1251,9 +1322,15 @@ document.getElementById('dlBtn').addEventListener('click', () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 
+  // The downloaded file is now the newest build; reflect that here so the card
+  // reads "in sync" until something changes again.
+  BUILD = stamp;
+  try { localStorage.removeItem('bp_refreshed'); } catch(e){}
+  renderVersion();
+
   const s = document.getElementById('dlsuccess');
-  s.textContent = '\u2705 Downloaded ' + BOOKS.length.toLocaleString() + ' books and ' +
-                  LOG.length + ' log entries. Upload it to GitHub to update your app.';
+  s.textContent = '\u2705 Build ' + stamp.n + ' downloaded \u2014 ' + BOOKS.length.toLocaleString() +
+                  ' books and ' + LOG.length + ' log entries. Upload it to GitHub to update your app.';
   s.style.display = 'block';
   setTimeout(() => s.style.display = 'none', 4000);
 });
@@ -1268,6 +1345,7 @@ function init() {
   updateStats();
   buildListCache();
   updateLogCard();
+  renderVersion();
   document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
 }
 
