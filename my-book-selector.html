@@ -122,7 +122,7 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .logstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .lstat{background:var(--dark);border-radius:10px;padding:10px 6px;text-align:center}
 .lstat .ln{font-family:'Playfair Display',serif;font-size:1.3rem;display:block}
-.lstat .ll{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
+.lstat .ll{font-size:.6rem;color:var(--light);text-transform:uppercase;letter-spacing:.06em}
 .lstat.read .ln{color:#6aab7e}
 .lstat.removed .ln{color:#c47a7a}
 .lstat.ignored .ln{color:var(--light)}
@@ -434,7 +434,7 @@ self.addEventListener('fetch', e => {
   <div class="card">
     <h3>📋 Reading Log</h3>
     <div class="logstats">
-      <div class="lstat read"><span class="ln" id="lgRead">0</span><span class="ll">✓ Read</span></div>
+      <div class="lstat read"><span class="ln" id="lgRead">0</span><span class="ll">✅ Read</span></div>
       <div class="lstat removed"><span class="ln" id="lgRemoved">0</span><span class="ll">🗑 Removed</span></div>
       <div class="lstat ignored"><span class="ln" id="lgIgnored">0</span><span class="ll">👻 Ignored</span></div>
     </div>
