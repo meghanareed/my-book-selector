@@ -448,7 +448,7 @@ self.addEventListener('fetch', e => {
     <h3>💾 Save Updated App</h3>
     <p style="font-size:.8rem;margin-bottom:12px;opacity:.8">Downloads a new version of the app with your current book list baked in — including any books you've marked as read. Re-upload this to GitHub to keep your hosted version in sync.</p>
     <button class="dlbtn" id="dlBtn">⬇️ Download my-book-selector.html</button>
-    <p class="dlnote">Then drag &amp; drop it into your GitHub repo to update the app. The build number above will match once it&rsquo;s live.</p>
+    <p class="dlnote">Then drag &amp; drop it into your GitHub repo to update the app. The version number above will match once it&rsquo;s live.</p>
     <div class="isuccess" id="dlsuccess" style="display:none;margin-top:10px">✅ Downloaded! Upload it to GitHub to update your app.</div>
   </div>
 </div>
@@ -1114,7 +1114,7 @@ function saveBooks() { try { localStorage.setItem('bp_books', JSON.stringify(BOO
 let LOG = [];
 // Baked-in log from 'Save Updated App' — used only when this browser has no log yet.
 /*LOG_START*/let SEED_LOG = [];/*LOG_END*/
-// Stamped by 'Save Updated App' so you can tell which build is live.
+// Stamped by 'Save Updated App' so you can tell which version is live.
 /*BUILD_START*/let BUILD = { n: 0, at: '', books: 0, log: 0 };/*BUILD_END*/
 function saveLog() { try { localStorage.setItem('bp_log', JSON.stringify(LOG)); } catch(e){} }
 
@@ -1162,22 +1162,25 @@ function fmtWhen(iso) {
          ', ' + d.toLocaleTimeString('en-AU', {hour:'numeric', minute:'2-digit'});
 }
 
+// The original upload is 1.0; each 'Save Updated App' bumps the minor part.
+function verLabel(n) { return 'Version 1.' + (n || 0); }
+
 function renderVersion() {
   const el = id => document.getElementById(id);
   const n = BUILD.n || 0;
   const counts = (books, log) =>
     books.toLocaleString() + (books === 1 ? ' book' : ' books') + ' \u00b7 ' + log + ' logged';
 
-  el('vBuild').textContent = n ? 'Build ' + n : 'Original';
+  el('vBuild').textContent = verLabel(n);
   el('vWhen').textContent  = n ? (fmtWhen(BUILD.at) || 'saved from this app')
-                               : 'never saved from this app';
+                               : 'original upload';
   el('vFile').textContent   = n ? counts(BUILD.books, BUILD.log) : 'as first uploaded';
   el('vDevice').textContent = counts(BOOKS.length, LOG.length);
 
   const refreshed = localStorage.getItem('bp_refreshed');
-  el('vRefreshed').textContent = refreshed ? (fmtWhen(refreshed) || '\u2013') : 'not since this build';
+  el('vRefreshed').textContent = refreshed ? (fmtWhen(refreshed) || '\u2013') : 'not since this version';
 
-  // Only meaningful once a build exists to compare against.
+  // Only meaningful once a saved version exists to compare against.
   const inSync = n > 0 && BUILD.books === BOOKS.length && BUILD.log === LOG.length;
   const sync = el('vSync');
   if (inSync) {
@@ -1322,14 +1325,14 @@ document.getElementById('dlBtn').addEventListener('click', () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 
-  // The downloaded file is now the newest build; reflect that here so the card
+  // The downloaded file is now the newest version; reflect that here so the card
   // reads "in sync" until something changes again.
   BUILD = stamp;
   try { localStorage.removeItem('bp_refreshed'); } catch(e){}
   renderVersion();
 
   const s = document.getElementById('dlsuccess');
-  s.textContent = '\u2705 Build ' + stamp.n + ' downloaded \u2014 ' + BOOKS.length.toLocaleString() +
+  s.textContent = '\u2705 ' + verLabel(stamp.n) + ' downloaded \u2014 ' + BOOKS.length.toLocaleString() +
                   ' books and ' + LOG.length + ' log entries. Upload it to GitHub to update your app.';
   s.style.display = 'block';
   setTimeout(() => s.style.display = 'none', 4000);
@@ -1338,7 +1341,7 @@ document.getElementById('dlBtn').addEventListener('click', () => {
 function init() {
   try { const s = localStorage.getItem('bp_books'); if(s) BOOKS = JSON.parse(s); } catch(e){}
   try { const l = localStorage.getItem('bp_log'); if(l) LOG = JSON.parse(l); } catch(e){}
-  // Fresh browser (or a newly re-uploaded build): restore the log baked into the file.
+  // Fresh browser (or a newly re-uploaded version): restore the log baked into the file.
   if (!LOG.length && Array.isArray(SEED_LOG) && SEED_LOG.length) { LOG = SEED_LOG.slice(); saveLog(); }
   buildChips();
   updateCount();
