@@ -134,6 +134,9 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .sbox{background:var(--dark);border-radius:10px;padding:12px 8px;text-align:center}
 .sbox .sn{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--gold);display:block}
 .sbox .sl{font-size:.63rem;color:var(--light);text-transform:uppercase;letter-spacing:.06em}
+.snote{display:none;margin-top:10px;font-size:.72rem;line-height:1.4;color:var(--light);opacity:.85}
+.snote.show{display:block}
+.snote b{color:var(--gold)}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:var(--cream)}
 ::-webkit-scrollbar-thumb{background:var(--light);border-radius:2px}
@@ -419,6 +422,7 @@ self.addEventListener('fetch', e => {
       <div class="sbox"><span class="sn" id="stOwned">–</span><span class="sl">Owned</span></div>
       <div class="sbox"><span class="sn" id="stGenres">–</span><span class="sl">Genres</span></div>
     </div>
+    <div class="snote" id="stNoPages"></div>
   </div>
   <div class="card">
     <h3>📁 Refresh Your Library</h3>
@@ -795,6 +799,15 @@ function updateStats() {
   const gs = new Set();
   BOOKS.forEach(b => { if(b.genre) b.genre.split(',').forEach(g => { if(g.trim()) gs.add(g.trim().toLowerCase()); }); });
   document.getElementById('stGenres').textContent = gs.size;
+  // The length filters run on page counts, so a library full of blanks quietly
+  // shrinks every page-range result. Show how many are still missing one — the
+  // number to watch shrink as enrichment fills them in.
+  const noPages = BOOKS.filter(b => !b.pageCount).length;
+  const note = document.getElementById('stNoPages');
+  note.innerHTML = noPages
+    ? '📖 <b>' + noPages.toLocaleString() + '</b> of these have no page count yet, so the length filters skip them.'
+    : '📖 Every book has a page count — the length filters see all of them.';
+  note.classList.add('show');
 }
 
 // ── FILE UPLOAD ──
