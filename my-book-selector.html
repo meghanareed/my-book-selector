@@ -134,6 +134,9 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .sbox{background:var(--dark);border-radius:10px;padding:12px 8px;text-align:center}
 .sbox .sn{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--gold);display:block}
 .sbox .sl{font-size:.63rem;color:var(--light);text-transform:uppercase;letter-spacing:.06em}
+.snote{display:none;margin-top:10px;font-size:.72rem;line-height:1.4;color:var(--light);opacity:.85}
+.snote.show{display:block}
+.snote b{color:var(--gold)}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:var(--cream)}
 ::-webkit-scrollbar-thumb{background:var(--light);border-radius:2px}
@@ -419,6 +422,7 @@ self.addEventListener('fetch', e => {
       <div class="sbox"><span class="sn" id="stOwned">–</span><span class="sl">Owned</span></div>
       <div class="sbox"><span class="sn" id="stGenres">–</span><span class="sl">Genres</span></div>
     </div>
+    <div class="snote" id="stNoPages"></div>
   </div>
   <div class="card">
     <h3>📁 Refresh Your Library</h3>
@@ -429,7 +433,7 @@ self.addEventListener('fetch', e => {
       <p style="margin-top:4px;opacity:.7">books_output.xlsx</p>
       <input type="file" id="fileUp" accept=".csv,.xlsx,.xls">
     </label>
-    <div class="isuccess" id="isuccess">✅ Library updated! <span id="icount"></span> books loaded.</div>
+    <div class="isuccess" id="isuccess">✅ Library updated! <span id="icount"></span> books loaded.<div id="inote" style="font-weight:600;opacity:.85;margin-top:6px"></div></div>
   </div>
   <div class="card">
     <h3>📋 Reading Log</h3>
@@ -585,10 +589,21 @@ function getFiltered() {
     }
     if (selL.size) {
       const pc = parseInt(b.pageCount) || 0;
-      const lc = b.lengthCategory || '';
+      // "X-Short" and "Length Category" disagree often enough (a row can be
+      // tagged Short with no number, or carry 150 pages and no tag) that the
+      // page count decides whenever there is one, and the saved category is
+      // the fallback for rows that never got a number. Buttons are labelled
+      // with page ranges, so the ranges below are what they promise.
+      const lc = (b.lengthCategory || '').toLowerCase().replace(/[^a-z]/g, '');
       const matchLen = [...selL].some(l => {
-        if (l === 'XShort') return pc > 0 && pc < 100;
-        return lc === l;
+        if (pc > 0) {
+          if (l === 'XShort') return pc < 100;
+          if (l === 'Short')  return pc < 200;
+          if (l === 'Medium') return pc >= 200 && pc < 400;
+          if (l === 'Long')   return pc >= 400 && pc < 600;
+          if (l === 'Epic')   return pc >= 600;
+        }
+        return lc === l.toLowerCase();
       });
       if (!matchLen) return false;
     }
@@ -784,6 +799,15 @@ function updateStats() {
   const gs = new Set();
   BOOKS.forEach(b => { if(b.genre) b.genre.split(',').forEach(g => { if(g.trim()) gs.add(g.trim().toLowerCase()); }); });
   document.getElementById('stGenres').textContent = gs.size;
+  // The length filters run on page counts, so a library full of blanks quietly
+  // shrinks every page-range result. Show how many are still missing one — the
+  // number to watch shrink as enrichment fills them in.
+  const noPages = BOOKS.filter(b => !b.pageCount).length;
+  const note = document.getElementById('stNoPages');
+  note.innerHTML = noPages
+    ? '📖 <b>' + noPages.toLocaleString() + '</b> of these have no page count yet, so the length filters skip them.'
+    : '📖 Every book has a page count — the length filters see all of them.';
+  note.classList.add('show');
 }
 
 // ── FILE UPLOAD ──
@@ -825,6 +849,13 @@ function doImport(books) {
   BOOKS = kept; saveBooks();
   document.getElementById('icount').textContent = kept.length.toLocaleString() +
     (skipped ? ' (' + skipped + ' already logged, skipped)' : '');
+  // The length filters are only as good as the page numbers behind them, so say
+  // up front how many rows arrived without one — otherwise an empty "<100 pg"
+  // result looks like a broken filter instead of a gap in the file.
+  const noPages = kept.filter(b => !b.pageCount).length;
+  document.getElementById('inote').textContent = noPages
+    ? '📖 ' + noPages.toLocaleString() + ' of them have no page count, so the length filters skip them.'
+    : '';
   document.getElementById('isuccess').classList.add('show');
   document.getElementById('hcount').textContent = kept.length + ' books in your library';
   try { localStorage.setItem('bp_refreshed', new Date().toISOString()); } catch(e){}
@@ -982,21 +1013,60 @@ function splitRow(line) {
   return fields.map(f => f.replace(/^"|"$/g,''));
 }
 
+// Exports spell the same column a dozen ways ("Page Count", "page_count",
+// "# of Pages"), so headers are squashed to letters and digits before lookup
+// and every candidate name below is written in that squashed form.
+function squash(k) { return String(k).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+function pick(cols, names) {
+  for (const n of names) { const v = cols[n]; if (v) return v; }
+  return '';
+}
+
+// "352", "352 pages" and "1,024" all mean the same thing.
+function toPages(v) {
+  const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+  return n > 0 ? n : 0;
+}
+
+// A page count under a header we don't know by name is still a page count, so
+// after the known names we take any column that mentions pages and holds a
+// number. Anything non-numeric ("Page URL") parses to 0 and is skipped.
+function pickPages(cols) {
+  const named = pick(cols, ['pagecount','pages','numberofpages','numpages',
+                            'nofpages','noofpages','pagelength','lengthpages',
+                            'pagecounts','pagenumbers','pg','pgs']);
+  if (toPages(named)) return toPages(named);
+  for (const k of Object.keys(cols)) {
+    if (k.includes('page') || k.includes('pgs')) { const n = toPages(cols[k]); if (n) return n; }
+  }
+  return 0;
+}
+
+// Owned reads as a yes/no everywhere it's used, so normalise the truthy
+// spellings ("y", "TRUE", "1") rather than let them fall through as not-owned.
+function toOwned(v) {
+  const s = String(v).trim();
+  if (/^(yes|y|true|1|owned|own|x)$/i.test(s)) return 'Yes';
+  if (/^(no|n|false|0)$/i.test(s)) return 'No';
+  return s;
+}
+
 function mapRows(rows) {
   return rows.map(obj => {
-    const lo = {};
-    Object.keys(obj).forEach(k => { lo[k.toLowerCase().trim()] = String(obj[k]||'').trim(); });
+    const cols = {};
+    Object.keys(obj).forEach(k => { cols[squash(k)] = String(obj[k]||'').trim(); });
     return {
-      title: lo['title']||lo['book title']||lo['name']||'',
-      author: lo['author']||lo['authors']||'Unknown',
-      genre: lo['genre']||lo['genres']||'',
-      pageCount: parseInt(lo['pagecount']||lo['number of pages']||lo['pages']||'0')||0,
-      lengthCategory: lo['lengthcategory']||lo['length category']||lo['length']||'',
-      tropes: lo['tropes']||lo['tags']||'',
-      triggers: lo['triggers']||lo['content warnings']||'',
-      ageRange: lo['agerange']||lo['age range']||lo['audience']||'',
-      owned: lo['owned']||'',
-      description: (lo['description']||lo['summary']||'').substring(0,400),
+      title: pick(cols, ['title','booktitle','name']),
+      author: pick(cols, ['author','authors','writer']) || 'Unknown',
+      genre: pick(cols, ['genre','genres','category','categories']),
+      pageCount: pickPages(cols),
+      lengthCategory: pick(cols, ['lengthcategory','lengthcat','length']),
+      tropes: pick(cols, ['tropes','trope','tags']),
+      triggers: pick(cols, ['triggers','trigger','contentwarnings','contentwarning','cw']),
+      ageRange: pick(cols, ['agerange','age','audience','agegroup','readingage']),
+      owned: toOwned(pick(cols, ['owned','own','ownit','inlibrary'])),
+      description: pick(cols, ['description','summary','blurb','synopsis']).substring(0,400),
     };
   }).filter(b => b.title && b.title !== 'nan');
 }
