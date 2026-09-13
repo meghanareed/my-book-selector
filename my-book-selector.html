@@ -426,7 +426,7 @@ self.addEventListener('fetch', e => {
   </div>
   <div class="card">
     <h3>📁 Refresh Your Library</h3>
-    <p style="font-size:.8rem;margin-bottom:10px;opacity:.9">Upload your <strong>Books Output</strong> file to refresh your library — this powers all the filters on the Pick tab. Books marked Read are automatically excluded.</p>
+    <p style="font-size:.8rem;margin-bottom:10px;opacity:.9">Upload your <strong>Books Output</strong> file to refresh your library — this powers all the filters on the Pick tab. Books marked Read, Ignored or Removed are left out.</p>
     <label class="uzone">
       <span class="ui">📂</span>
       <p><strong>Tap to choose file</strong></p>
@@ -843,12 +843,23 @@ function doImport(books) {
     loggedKeys.has(logKey(b.title, b.author)) ||
     vagueTitles.has(normStr(b.title)) ||
     (vagueAuthor(b.author) && loggedTitles.has(normStr(b.title)));
-  const kept = books.filter(b => !isLogged(b));
-  const skipped = books.length - kept.length;
+  // The spreadsheet has its own memory of what you have finished or dismissed,
+  // and it outlives this browser's log — a cleared cache or a different phone
+  // would otherwise put every one of them back in the pick pile.
+  const isDone = b =>
+    b.read === 'Yes' || ['Read','Ignored','Removed'].includes(b.decision);
+
+  const done = books.filter(isDone).length;
+  const kept = books.filter(b => !isDone(b) && !isLogged(b))
+                    .map(({ read, decision, ...rest }) => rest);
+  const skipped = books.length - done - kept.length;
 
   BOOKS = kept; saveBooks();
+  const notes = [];
+  if (done) notes.push(done + ' read or dismissed');
+  if (skipped) notes.push(skipped + ' already logged');
   document.getElementById('icount').textContent = kept.length.toLocaleString() +
-    (skipped ? ' (' + skipped + ' already logged, skipped)' : '');
+    (notes.length ? ' (' + notes.join(', ') + ' skipped)' : '');
   // The length filters are only as good as the page numbers behind them, so say
   // up front how many rows arrived without one — otherwise an empty "<100 pg"
   // result looks like a broken filter instead of a gap in the file.
@@ -1067,6 +1078,11 @@ function mapRows(rows) {
       ageRange: pick(cols, ['agerange','age','audience','agegroup','readingage']),
       owned: toOwned(pick(cols, ['owned','own','ownit','inlibrary'])),
       description: pick(cols, ['description','summary','blurb','synopsis']).substring(0,400),
+      // Both are dropped by doImport rather than kept on the book. Owned now
+      // means "in my Amazon library" whether or not it has been read, so Read
+      // is the only thing separating the library from the pile still to read.
+      read: toOwned(pick(cols, ['read','haveread','alreadyread','finished'])),
+      decision: pick(cols, ['selectordecision','decision']),
     };
   }).filter(b => b.title && b.title !== 'nan');
 }
