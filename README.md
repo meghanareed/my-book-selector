@@ -23,6 +23,36 @@ git clone https://github.com/meghanareed/my-book-selector.git
 ## Usage
 Run the application from your terminal or preferred IDE and follow the prompts to get recommendations.
 
+## Spice Tags
+
+Alongside genre, length and tropes, the Pick tab has a collapsed **Spice Tags**
+section holding a finer-grained set of descriptors. It starts closed and stays
+closed until you open it; selecting tags narrows the pool to books carrying at
+least one of them.
+
+These tags come from an optional column in your spreadsheet. If that column is
+absent the section simply matches nothing, and the rest of the app is unaffected.
+
+Two things make this section behave differently from the others:
+
+**Matching is by whole token, not substring.** Genre and trope filters test whether
+your selection appears anywhere in the book's text, which is fine for broad
+categories but wrong for specific ones — a tag like "Age Gap Dynamic" would
+otherwise be matched by an unrelated "Age Gap" trope. The tag vocabulary is a fixed
+list (`SPICE`), so these are compared as exact, comma-separated values instead.
+Change that list and you must change the matching list in the enrichment script
+too, or the chips stop lining up with what gets written.
+
+**The tags stay on the device.** They are read from your spreadsheet into browser
+storage when you refresh your library, and **stripped out of the file that "Save
+Updated App" downloads** — so the copy you upload to your host carries none of
+them. This matters if your repo is public: a collapsed section hides things from a
+glance, but anything baked into a served HTML file is readable by anyone who looks.
+
+The consequence is that the tags only exist where you uploaded the spreadsheet. If
+you refresh your library on a desktop and push the HTML from there, your phone gets
+a library with no tags. Upload the spreadsheet on each device you want them on.
+
 ## Mascots
 
 A reading buddy is drawn at random each time the app picks a book. The art lives
