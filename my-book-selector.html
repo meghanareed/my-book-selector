@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{--cream:#fdf6e3;--brown:#8b5e3c;--light:#c4956a;--dark:#3d2b1f;--forest:#4a7c59;--gold:#c9a84c;--paper:#f5eed8;--sh:rgba(61,43,31,0.15)}
+:root{--marrowquill:#4d5226;--cream:#fdf6e3;--brown:#8b5e3c;--light:#c4956a;--dark:#3d2b1f;--forest:#4a7c59;--gold:#c9a84c;--paper:#f5eed8;--sh:rgba(61,43,31,0.15)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Lato',sans-serif;background:var(--cream);min-height:100vh;color:var(--dark)}
 header{background:var(--dark);padding:16px 20px 12px;text-align:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,0.3)}
@@ -143,6 +143,21 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .exportbtn{width:100%;padding:12px;background:linear-gradient(135deg,#5a3e7a,#3d2b55);color:#e8d5ff;font-family:'Playfair Display',serif;font-size:.95rem;font-style:italic;border:none;border-radius:12px;cursor:pointer;box-shadow:0 3px 12px rgba(90,62,122,.4);transition:.2s}
 .exportbtn:active{transform:scale(0.98)}
 .lognone{font-size:.8rem;color:var(--light);text-align:center;font-style:italic;padding:10px 0}
+.logdet{margin-bottom:12px}
+.logdet summary{cursor:pointer;font-size:.8rem;font-weight:700;color:var(--brown);padding:6px 0;list-style-position:inside}
+.logsearch{width:100%;padding:8px 10px;margin:6px 0 8px;border-radius:8px;border:1.5px solid var(--light);background:var(--cream);color:var(--dark);font-family:'Lato',sans-serif;font-size:.85rem}
+.loglist{display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto}
+.logrow{display:flex;align-items:center;gap:10px;background:var(--cream);border:1px solid rgba(196,149,106,.25);border-radius:10px;padding:8px 10px}
+.logrow .lri{flex:1;min-width:0}
+.logrow .lrt{font-family:'Playfair Display',serif;font-size:.85rem;color:var(--dark);overflow-wrap:anywhere}
+.logrow .lra{font-size:.7rem;color:var(--brown);margin-top:2px}
+.logrow .bb.Read{background:rgba(74,124,89,.15);color:var(--forest)}
+.logrow .bb.Removed{background:rgba(196,122,122,.15);color:#a85c5c}
+.logrow .bb.Undone{background:transparent;border:1px dashed var(--light);color:var(--light);font-style:italic}
+.logrow.undone .lrt{color:var(--light)}
+.undobtn{flex:none;padding:7px 10px;border-radius:8px;border:1.5px solid var(--brown);background:transparent;color:var(--brown);font-weight:700;font-size:.75rem;cursor:pointer}
+.undobtn:active{transform:scale(0.96)}
+.lognomatch{font-size:.78rem;color:var(--light);text-align:center;font-style:italic;padding:8px 0}
 .isuccess.show{display:block}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .sbox{background:var(--dark);border-radius:10px;padding:12px 8px;text-align:center}
@@ -445,7 +460,7 @@ self.addEventListener('fetch', e => {
   </div>
   <div class="card">
     <h3>📁 Refresh Your Library</h3>
-    <p style="font-size:.8rem;margin-bottom:10px;opacity:.9">Upload your <strong>Books Output</strong> file to refresh your library — this powers all the filters on the Pick tab. Books marked Read are automatically excluded.</p>
+    <p style="font-size:.8rem;margin-bottom:10px;opacity:.9">Upload your <strong>Books Output</strong> file to refresh your library — this powers all the filters on the Pick tab. Books marked Read, Ignored or Removed are left out.</p>
     <label class="uzone">
       <span class="ui">📂</span>
       <p><strong>Tap to choose file</strong></p>
@@ -462,6 +477,11 @@ self.addEventListener('fetch', e => {
       <div class="lstat ignored"><span class="ln" id="lgIgnored">0</span><span class="ll">👻 Ignored</span></div>
     </div>
     <div id="logNone" class="lognone">No books logged yet — mark some as Read, Remove, or Ignore!</div>
+    <details class="logdet" id="logDet" style="display:none">
+      <summary>Show logged books (tap ↩ Undo to put one back)</summary>
+      <input type="search" id="logSearch" class="logsearch" placeholder="Search title or author…" autocomplete="off">
+      <div id="logList" class="loglist"></div>
+    </details>
     <button class="exportbtn" id="exportLogBtn" style="display:none">📊 Export Log as Excel</button>
   </div>
   <div class="card">
@@ -892,19 +912,33 @@ document.getElementById('fileUp').addEventListener('change', e => {
 function doImport(books) {
   // Books already in the reading log stay out of the library, so a refresh never
   // resurrects something you've marked Read, Removed or Ignored.
-  const loggedKeys   = new Set(LOG.map(e => logKey(e.title, e.author)));
-  const loggedTitles = new Set(LOG.map(e => normStr(e.title)));
-  const vagueTitles  = new Set(LOG.filter(e => vagueAuthor(e.author)).map(e => normStr(e.title)));
+  // "Undone" entries are a record for the book tools, not a decision — those
+  // books belong back in the library.
+  const decided      = LOG.filter(e => e.status !== 'Undone');
+  const loggedKeys   = new Set(decided.map(e => logKey(e.title, e.author)));
+  const loggedTitles = new Set(decided.map(e => normStr(e.title)));
+  const vagueTitles  = new Set(decided.filter(e => vagueAuthor(e.author)).map(e => normStr(e.title)));
   const isLogged = b =>
     loggedKeys.has(logKey(b.title, b.author)) ||
     vagueTitles.has(normStr(b.title)) ||
     (vagueAuthor(b.author) && loggedTitles.has(normStr(b.title)));
-  const kept = books.filter(b => !isLogged(b));
-  const skipped = books.length - kept.length;
+  // The spreadsheet has its own memory of what you have finished or dismissed,
+  // and it outlives this browser's log — a cleared cache or a different phone
+  // would otherwise put every one of them back in the pick pile.
+  const isDone = b =>
+    b.read === 'Yes' || ['Read','Ignored','Removed'].includes(b.decision);
+
+  const done = books.filter(isDone).length;
+  const kept = books.filter(b => !isDone(b) && !isLogged(b))
+                    .map(({ read, decision, ...rest }) => rest);
+  const skipped = books.length - done - kept.length;
 
   BOOKS = kept; saveBooks();
+  const notes = [];
+  if (done) notes.push(done + ' read or dismissed');
+  if (skipped) notes.push(skipped + ' already logged');
   document.getElementById('icount').textContent = kept.length.toLocaleString() +
-    (skipped ? ' (' + skipped + ' already logged, skipped)' : '');
+    (notes.length ? ' (' + notes.join(', ') + ' skipped)' : '');
   // The length filters are only as good as the page numbers behind them, so say
   // up front how many rows arrived without one — otherwise an empty "<100 pg"
   // result looks like a broken filter instead of a gap in the file.
@@ -944,6 +978,8 @@ function logBook(book, status) {
     author: book.author || '',
     genre: book.genre || '',
     status: status,
+    // Full copy so Undo can put the book back with all its filter fields.
+    book: Object.assign({}, book),
     date: new Date().toLocaleDateString('en-AU', {day:'2-digit',month:'2-digit',year:'numeric'})
   });
   saveLog();
@@ -962,7 +998,61 @@ function updateLogCard() {
   const hasAny = LOG.length > 0;
   el('logNone').style.display    = hasAny ? 'none'  : 'block';
   el('exportLogBtn').style.display = hasAny ? 'block' : 'none';
+  el('logDet').style.display       = hasAny ? 'block' : 'none';
+  renderLogList();
 }
+
+// ── LOG LIST / UNDO ──
+function renderLogList() {
+  const list = document.getElementById('logList');
+  if (!list) return;
+  const q = normStr(document.getElementById('logSearch').value);
+  // Newest first; keep each entry's index in LOG so Undo targets the right one.
+  const rows = LOG.map((e, i) => ({ e, i })).reverse()
+    .filter(({ e }) => !q || normStr(e.title).includes(q) || normStr(e.author).includes(q));
+  if (!rows.length) {
+    list.innerHTML = '<div class="lognomatch">No logged books match.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(({ e, i }) => `
+    <div class="logrow${e.status === 'Undone' ? ' undone' : ''}">
+      <div class="lri">
+        <div class="lrt">${esc(e.title)}</div>
+        <div class="lra">${esc(e.author)}${e.date ? ' · ' + esc(e.date) : ''}</div>
+      </div>
+      <span class="bb ${esc(e.status)}">${esc(e.status)}</span>
+      ${e.status === 'Undone' ? '' : `<button class="undobtn" data-i="${i}">↩ Undo</button>`}
+    </div>`).join('');
+}
+
+function undoLog(i) {
+  const e = LOG[i];
+  if (!e || e.status === 'Undone') return;
+  if (!confirm('Put "' + e.title + '" back in your library?\n\nIt will be removed from your ' + e.status + ' list.')) return;
+  // Keep an "Undone" row rather than deleting the entry, so the exported log
+  // tells the book tools to reverse whatever they recorded for this book.
+  // Marking it again later replaces this row (logBook keeps one per book).
+  LOG.splice(i, 1);
+  LOG.push({
+    title: e.title, author: e.author, genre: e.genre, status: 'Undone',
+    date: new Date().toLocaleDateString('en-AU', {day:'2-digit',month:'2-digit',year:'numeric'})
+  });
+  saveLog();
+  // Older entries were logged before the full book was kept; rebuild a minimal
+  // one so the book is still pickable (it fills in completely on the next upload).
+  const book = e.book || { title: e.title, author: e.author, genre: e.genre,
+    pageCount: 0, lengthCategory: '', tropes: '', triggers: '', ageRange: '', owned: '', description: '' };
+  const k = logKey(book.title, book.author);
+  if (!BOOKS.some(b => logKey(b.title, b.author) === k)) { BOOKS.push(book); saveBooks(); }
+  updateCount(); updateStats(); updateLogCard(); renderVersion();
+  document.getElementById('hcount').textContent = BOOKS.length + ' books in your library';
+}
+
+document.getElementById('logSearch').addEventListener('input', renderLogList);
+document.getElementById('logList').addEventListener('click', ev => {
+  const btn = ev.target.closest('.undobtn');
+  if (btn) undoLog(Number(btn.dataset.i));
+});
 
 // ── VERSION / SYNC STATE ─────────────────────────────────────────────────────
 function fmtWhen(iso) {
@@ -1124,6 +1214,11 @@ function mapRows(rows) {
       ageRange: pick(cols, ['agerange','age','audience','agegroup','readingage']),
       owned: toOwned(pick(cols, ['owned','own','ownit','inlibrary'])),
       description: pick(cols, ['description','summary','blurb','synopsis']).substring(0,400),
+      // Both are dropped by doImport rather than kept on the book. Owned now
+      // means "in my Amazon library" whether or not it has been read, so Read
+      // is the only thing separating the library from the pile still to read.
+      read: toOwned(pick(cols, ['read','haveread','alreadyread','finished'])),
+      decision: pick(cols, ['selectordecision','decision']),
     };
   }).filter(b => b.title && b.title !== 'nan');
 }
@@ -1146,6 +1241,9 @@ document.getElementById('dlBtn').addEventListener('click', () => {
   if (pickNav) pickNav.classList.add('active');
 
   const rc = clone.querySelector('#rcard'); if (rc) rc.innerHTML = '';
+  // The log list is rebuilt from the baked-in log on load; don't ship a stale copy.
+  const ll = clone.querySelector('#logList'); if (ll) ll.innerHTML = '';
+  const ld = clone.querySelector('#logDet'); if (ld) ld.removeAttribute('open');
   // The mascot is an <img> now; drop the last-picked art so the saved file
   // doesn't ship mid-animation.
   const mi = clone.querySelector('#mimg');
