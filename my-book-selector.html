@@ -139,6 +139,8 @@ header p{color:var(--light);font-size:0.75rem;margin-top:2px}
 .logrow .lra{font-size:.7rem;color:var(--brown);margin-top:2px}
 .logrow .bb.Read{background:rgba(74,124,89,.15);color:var(--forest)}
 .logrow .bb.Removed{background:rgba(196,122,122,.15);color:#a85c5c}
+.logrow .bb.Undone{background:transparent;border:1px dashed var(--light);color:var(--light);font-style:italic}
+.logrow.undone .lrt{color:var(--light)}
 .undobtn{flex:none;padding:7px 10px;border-radius:8px;border:1.5px solid var(--brown);background:transparent;color:var(--brown);font-weight:700;font-size:.75rem;cursor:pointer}
 .undobtn:active{transform:scale(0.96)}
 .lognomatch{font-size:.78rem;color:var(--light);text-align:center;font-style:italic;padding:8px 0}
@@ -854,9 +856,12 @@ document.getElementById('fileUp').addEventListener('change', e => {
 function doImport(books) {
   // Books already in the reading log stay out of the library, so a refresh never
   // resurrects something you've marked Read, Removed or Ignored.
-  const loggedKeys   = new Set(LOG.map(e => logKey(e.title, e.author)));
-  const loggedTitles = new Set(LOG.map(e => normStr(e.title)));
-  const vagueTitles  = new Set(LOG.filter(e => vagueAuthor(e.author)).map(e => normStr(e.title)));
+  // "Undone" entries are a record for the book tools, not a decision — those
+  // books belong back in the library.
+  const decided      = LOG.filter(e => e.status !== 'Undone');
+  const loggedKeys   = new Set(decided.map(e => logKey(e.title, e.author)));
+  const loggedTitles = new Set(decided.map(e => normStr(e.title)));
+  const vagueTitles  = new Set(decided.filter(e => vagueAuthor(e.author)).map(e => normStr(e.title)));
   const isLogged = b =>
     loggedKeys.has(logKey(b.title, b.author)) ||
     vagueTitles.has(normStr(b.title)) ||
@@ -954,21 +959,28 @@ function renderLogList() {
     return;
   }
   list.innerHTML = rows.map(({ e, i }) => `
-    <div class="logrow">
+    <div class="logrow${e.status === 'Undone' ? ' undone' : ''}">
       <div class="lri">
         <div class="lrt">${esc(e.title)}</div>
         <div class="lra">${esc(e.author)}${e.date ? ' · ' + esc(e.date) : ''}</div>
       </div>
       <span class="bb ${esc(e.status)}">${esc(e.status)}</span>
-      <button class="undobtn" data-i="${i}">↩ Undo</button>
+      ${e.status === 'Undone' ? '' : `<button class="undobtn" data-i="${i}">↩ Undo</button>`}
     </div>`).join('');
 }
 
 function undoLog(i) {
   const e = LOG[i];
-  if (!e) return;
+  if (!e || e.status === 'Undone') return;
   if (!confirm('Put "' + e.title + '" back in your library?\n\nIt will be removed from your ' + e.status + ' list.')) return;
+  // Keep an "Undone" row rather than deleting the entry, so the exported log
+  // tells the book tools to reverse whatever they recorded for this book.
+  // Marking it again later replaces this row (logBook keeps one per book).
   LOG.splice(i, 1);
+  LOG.push({
+    title: e.title, author: e.author, genre: e.genre, status: 'Undone',
+    date: new Date().toLocaleDateString('en-AU', {day:'2-digit',month:'2-digit',year:'numeric'})
+  });
   saveLog();
   // Older entries were logged before the full book was kept; rebuild a minimal
   // one so the book is still pickable (it fills in completely on the next upload).
